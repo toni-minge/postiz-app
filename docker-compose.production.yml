@@ -2,6 +2,36 @@
 # This file can be used as a reference for Coolify deployment
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postiz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postiz_password}
+      POSTGRES_USER: ${POSTGRES_USER:-postiz}
+      POSTGRES_DB: ${POSTGRES_DB:-postiz_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postiz}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: postiz-redis
+    restart: unless-stopped
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   postiz-app:
     build:
       context: .
@@ -9,52 +39,34 @@ services:
     container_name: postiz-app
     restart: unless-stopped
     ports:
-      - "4200:4200"
+      - "5000:5000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postiz:postiz_password@postgres:5432/postiz_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - JWT_SECRET=${JWT_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
-      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
-      - MAIN_URL=${MAIN_URL}
-      - STORAGE_PROVIDER=${STORAGE_PROVIDER}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5000}
+      - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-http://localhost:5000}
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://localhost:3000}
+      - MAIN_URL=${MAIN_URL:-http://localhost:5000}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-s3}
       - AWS_REGION=${AWS_REGION}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
       - AWS_S3_BUCKET_URL=${AWS_S3_BUCKET_URL}
       - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT}
-      - UPLOAD_DIRECTORY=${UPLOAD_DIRECTORY}
-      - IS_GENERAL=${IS_GENERAL}
-      - DISABLE_REGISTRATION=${DISABLE_REGISTRATION}
+      - UPLOAD_DIRECTORY=${UPLOAD_DIRECTORY:-/tmp/uploads}
+      - IS_GENERAL=${IS_GENERAL:-true}
+      - DISABLE_REGISTRATION=${DISABLE_REGISTRATION:-false}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
       - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
-      - NOT_SECURED=${NOT_SECURED}
+      - NOT_SECURED=${NOT_SECURED:-true}
     depends_on:
-      - postgres
-      - redis
-    networks:
-      - postiz-network
-
-  postgres:
-    image: postgres:17-alpine
-    container_name: postiz-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - postiz-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: postiz-redis
-    restart: unless-stopped
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - postiz-network
 
