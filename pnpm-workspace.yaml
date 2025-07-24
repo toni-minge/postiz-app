@@ -1,3 +1,6 @@
 packages:
   - apps/*
   - libraries/*
+
+# ensure this matches the value in pnpm-lock.yaml under "settings:"
+injectWorkspacePackages: false   # or `true`, whatever your lockfile says
