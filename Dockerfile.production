@@ -13,8 +13,15 @@ COPY var/docker/entrypoint.sh /app/entrypoint.sh
 COPY var/docker/supervisord/caddy.conf /etc/supervisor.d/caddy.conf
 RUN chmod +x /app/entrypoint.sh
 
+# Install dependencies
 RUN pnpm install
-RUN pnpm run build
+
+# Build with increased Node.js memory limit and build apps sequentially
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN pnpm run build:backend && rm -rf /tmp/* 
+RUN pnpm run build:frontend && rm -rf /tmp/*
+RUN pnpm run build:workers && rm -rf /tmp/*
+RUN pnpm run build:cron && rm -rf /tmp/*
 
 EXPOSE 5000
 
