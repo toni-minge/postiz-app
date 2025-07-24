@@ -1,0 +1,50 @@
+FROM node:20-alpine3.19 AS builder
+ARG NEXT_PUBLIC_VERSION
+ENV NEXT_PUBLIC_VERSION=$NEXT_PUBLIC_VERSION
+
+# Install build dependencies
+RUN apk add --no-cache g++ make py3-pip
+
+# Install pnpm
+RUN npm --no-update-notifier --no-fund --global install pnpm@10.6.1
+
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/*/package.json ./apps/*/
+COPY libraries/*/package.json ./libraries/*/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build with memory optimization - build one at a time to avoid memory issues
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+RUN pnpm run build:backend && rm -rf /tmp/* /root/.npm
+RUN pnpm run build:frontend && rm -rf /tmp/* /root/.npm  
+RUN pnpm run build:workers && rm -rf /tmp/* /root/.npm
+RUN pnpm run build:cron && rm -rf /tmp/* /root/.npm
+
+# Production stage
+FROM node:20-alpine3.19
+RUN apk add --no-cache supervisor bash caddy curl
+RUN npm --no-update-notifier --no-fund --global install pnpm@10.6.1 pm2
+
+WORKDIR /app
+
+# Copy built application from builder stage
+COPY --from=builder /app ./
+
+# Copy Docker configuration files
+COPY var/docker/supervisord.conf /etc/supervisord.conf
+COPY var/docker/Caddyfile /app/Caddyfile
+COPY var/docker/entrypoint.sh /app/entrypoint.sh
+COPY var/docker/supervisord/caddy.conf /etc/supervisor.d/caddy.conf
+RUN chmod +x /app/entrypoint.sh
+
+EXPOSE 5000
+
+CMD ["pnpm", "run", "pm2"]
