@@ -12,10 +12,10 @@ export const removeAuth = (res: Response) => {
     domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
     ...(!process.env.NOT_SECURED
       ? {
-          secure: true,
-          httpOnly: true,
-          sameSite: 'none',
-        }
+        secure: true,
+        httpOnly: true,
+        sameSite: 'none',
+      }
       : {}),
     expires: new Date(0),
     maxAge: -1,
@@ -29,7 +29,7 @@ export class AuthMiddleware implements NestMiddleware {
   constructor(
     private _organizationService: OrganizationService,
     private _userService: UsersService
-  ) {}
+  ) { }
   async use(req: Request, res: Response, next: NextFunction) {
     const auth = req.headers.auth || req.cookies.auth;
     if (!auth) {
